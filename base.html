@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Health Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .status {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .good {
+            color: green;
+        }
+        .bad {
+            color: red;
+        }
+        .loader {
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #3498db;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .metrics {
+            font-size: 20px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>System Health Status</h1>
+    <div id="status" class="status">Loading...</div>
+    <div class="loader"></div>
+    <div id="metrics" class="metrics"></div>
+    <script>
+        function fetchSystemHealth() {
+            fetch('http://127.0.0.1:5000/predict')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok.');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const statusElement = document.getElementById('status');
+                    const metricsElement = document.getElementById('metrics');
+                    
+                    // Access the exact field names from the backend
+                    const systemHealth = data.system_health || 'unknown';
+                    const cpuUsage = data.cpu_usage_percent ? data.cpu_usage_percent.toFixed(2) : 'N/A';
+                    const diskUsageC = data['disk_usage_C:'] ? data['disk_usage_C:'].toFixed(2) : 'N/A';
+                    const diskUsageD = data['disk_usage_D:'] ? data['disk_usage_D:'].toFixed(2) : 'N/A';
+                    const diskUsageE = data['disk_usage_E:'] ? data['disk_usage_E:'].toFixed(2) : 'N/A';
+                    const ramUsage = data.ram_usage_percent ? data.ram_usage_percent.toFixed(2) : 'N/A';
+
+                    // Update status
+                    if (systemHealth === 'good') {
+                        statusElement.textContent = 'System Health: Good';
+                        statusElement.className = 'status good';
+                    } else if (systemHealth === 'bad') {
+                        statusElement.textContent = 'System Health: Bad';
+                        statusElement.className = 'status bad';
+                    } else {
+                        statusElement.textContent = 'System Health: Unknown';
+                        statusElement.className = 'status';
+                    }
+
+                    // Update metrics
+                    metricsElement.innerHTML = `
+                        <p>CPU Usage: ${cpuUsage}%</p>
+                        <p>Disk Usage C: ${diskUsageC}%</p>
+                        <p>Disk Usage D: ${diskUsageD}%</p>
+                        <p>Disk Usage E: ${diskUsageE}%</p>
+                        <p>RAM Usage: ${ramUsage}%</p>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Error fetching system health:', error);
+                    const statusElement = document.getElementById('status');
+                    const metricsElement = document.getElementById('metrics');
+                    statusElement.textContent = 'Error fetching system health';
+                    statusElement.className = 'status';
+                    metricsElement.innerHTML = '';
+                });
+        }
+
+        // Fetch system health every 2 seconds
+        setInterval(fetchSystemHealth, 2000);
+
+        // Fetch system health immediately on load
+        fetchSystemHealth();
+    </script>
+</body>
+</html>

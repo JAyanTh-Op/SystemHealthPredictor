@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Health Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        .status {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .good {
+            color: green;
+        }
+        .bad {
+            color: red;
+        }
+        .loader {
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #3498db;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .charts-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .chart {
+            width: 300px;
+            height: 150px;
+            position: relative;
+        }
+        .chart canvas {
+            width: 100% !important;
+            height: auto !important;
+        }
+        .chart p {
+            margin-top: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .percentage-text {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: -20px; /* Adjust this value to position text correctly */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <h1>System Health Status</h1>
+    <div id="status" class="status">Loading...</div>
+    <div class="loader"></div>
+    <div class="charts-container">
+        <div class="chart">
+            <canvas id="cpuChart"></canvas>
+            <p>CPU Usage</p>
+            <div id="cpuText" class="percentage-text">0%</div>
+        </div>
+        <div class="chart">
+            <canvas id="ramChart"></canvas>
+            <p>RAM Usage</p>
+            <div id="ramText" class="percentage-text">0%</div>
+        </div>
+        <div class="chart">
+            <canvas id="diskCChart"></canvas>
+            <p>Disk Usage C</p>
+            <div id="diskCText" class="percentage-text">0%</div>
+        </div>
+        <div class="chart">
+            <canvas id="diskDChart"></canvas>
+            <p>Disk Usage D</p>
+            <div id="diskDText" class="percentage-text">0%</div>
+        </div>
+        <div class="chart">
+            <canvas id="diskEChart"></canvas>
+            <p>Disk Usage E</p>
+            <div id="diskEText" class="percentage-text">0%</div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script>
+        function createSemiCircleChart(ctx, initialValue, textId) {
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Usage', 'Non Usage'],
+                    datasets: [{
+                        data: [initialValue, 100 - initialValue],
+                        backgroundColor: ['#3498db', '#e0e0e0'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutoutPercentage: 80,
+                    rotation: -90,
+                    circumference: 180,
+                    plugins: {
+                        datalabels: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: false
+                        }
+                    },
+                    onComplete: function () {
+                        document.getElementById(textId).textContent = initialValue.toFixed(2) + '%';
+                    }
+                }
+            });
+        }
+
+        function updateChart(chart, value, textId) {
+            chart.data.datasets[0].data = [value, 100 - value];
+            chart.update();
+            document.getElementById(textId).textContent = value.toFixed(2) + '%';
+        }
+
+        function fetchSystemHealth() {
+            fetch('http://127.0.0.1:5000/predict')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok.');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const systemHealth = data.system_health || 'unknown';
+                    const cpuUsage = data.cpu_usage_percent || 0;
+                    const diskUsageC = data['disk_usage_C:'] || 0;
+                    const diskUsageD = data['disk_usage_D:'] || 0;
+                    const diskUsageE = data['disk_usage_E:'] || 0;
+                    const ramUsage = data.ram_usage_percent || 0;
+
+                    const statusElement = document.getElementById('status');
+                    if (systemHealth === 'good') {
+                        statusElement.textContent = 'System Health: Good';
+                        statusElement.className = 'status good';
+                    } else if (systemHealth === 'bad') {
+                        statusElement.textContent = 'System Health: Bad';
+                        statusElement.className = 'status bad';
+                    } else {
+                        statusElement.textContent = 'System Health: Unknown';
+                        statusElement.className = 'status';
+                    }
+
+                    updateChart(cpuChart, cpuUsage, 'cpuText');
+                    updateChart(ramChart, ramUsage, 'ramText');
+                    updateChart(diskCChart, diskUsageC, 'diskCText');
+                    updateChart(diskDChart, diskUsageD, 'diskDText');
+                    updateChart(diskEChart, diskUsageE, 'diskEText');
+                })
+                .catch(error => {
+                    console.error('Error fetching system health:', error);
+                    const statusElement = document.getElementById('status');
+                    statusElement.textContent = 'Error fetching system health';
+                    statusElement.className = 'status';
+                });
+        }
+
+        const ctxCPU = document.getElementById('cpuChart').getContext('2d');
+        const cpuChart = createSemiCircleChart(ctxCPU, 0, 'cpuText');
+
+        const ctxRAM = document.getElementById('ramChart').getContext('2d');
+        const ramChart = createSemiCircleChart(ctxRAM, 0, 'ramText');
+
+        const ctxDiskC = document.getElementById('diskCChart').getContext('2d');
+        const diskCChart = createSemiCircleChart(ctxDiskC, 0, 'diskCText');
+
+        const ctxDiskD = document.getElementById('diskDChart').getContext('2d');
+        const diskDChart = createSemiCircleChart(ctxDiskD, 0, 'diskDText');
+
+        const ctxDiskE = document.getElementById('diskEChart').getContext('2d');
+        const diskEChart = createSemiCircleChart(ctxDiskE, 0, 'diskEText');
+
+        setInterval(fetchSystemHealth, 2000);
+        fetchSystemHealth();
+    </script>
+</body>
+</html>
